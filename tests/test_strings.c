@@ -10,7 +10,8 @@
  *
  *   gcc -Isrc -Wall -o /tmp/ts tests/test_strings.c src/ui/strings_table.c \
  *       src/ui/strings_de.c src/ui/strings_en.c src/ui/strings_es.c \
- *       src/ui/strings_pt.c src/ui/strings_it.c src/ui/strings_fr.c && /tmp/ts
+ *       src/ui/strings_pt.c src/ui/strings_it.c src/ui/strings_fr.c \
+ *       src/ui/strings_ja.c && /tmp/ts
  */
 #include "../src/ui/strings.h"
 
@@ -119,6 +120,7 @@ int main(void) {
           "out-of-range id must be NULL");
     CHECK(strcmp(vt_lang_code(VT_LANG_AUTO), "auto") == 0, "code of AUTO");
     CHECK(strcmp(vt_lang_code(VT_LANG_FR), "fr") == 0, "code of FR");
+    CHECK(strcmp(vt_lang_code(VT_LANG_JA), "ja") == 0, "code of JA");
     for (int i = 0; i < VT_STR_COUNT; i++) {
         const char *de = vt_str_in(VT_LANG_DE, (VtStringId)i);
         CHECK(de && de[0], "de: id %d missing or empty", i);

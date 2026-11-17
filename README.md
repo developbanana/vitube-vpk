@@ -12,6 +12,9 @@ is early/experimental — **use at your own risk, no guarantees.**
 **Download (prebuilt VPK):** see [Releases](../../releases) — install with
 VitaShell or any other installer, requires HENkaku/Ensō.
 
+**Version 2.1.0-ja** (this fork) adds Japanese support — see
+[Japanese support in this fork](#japanese-support-in-this-fork).
+
 **Version 2.0** removes a bundled system plugin whose hooks could crash
 other apps with hardware video decoding after ViTube was closed — see
 [Installing on the Vita](#installing-on-the-vita) for details and a note for
@@ -21,6 +24,30 @@ License: GPL-3.0-only (see [`LICENSE`](LICENSE)). A full list of bundled
 third-party components and their licenses is in
 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md). This repository contains
 the complete Corresponding Source for the published VPK (GPL-3.0 §6).
+
+## Japanese support in this fork
+
+This fork lives at <https://github.com/developbanana/vitube-vpk> and adds:
+
+- **Japanese UI** (`src/ui/strings_ja.c`): the complete 144-entry catalogue,
+  including hints, settings, sign-in and player messages. The language picker
+  now offers 日本語.
+- **Region: Japan** (`src/yt/region.c`): `hl=ja`, `gl=JP`. A Japanese console
+  selects it on first launch, so titles, dates and search results come back in
+  Japanese. `region.txt` now stores the two-letter `gl` code; one-digit files
+  from older builds are still read as an index.
+- **Japanese glyphs** (`assets/font_ja.ttf`): DejaVu has no kana or kanji, so
+  a third font family (Noto Sans JP, OFL-1.1, subset at wght=400) is loaded on
+  demand per size. `src/ui/ui.c` picks it for CJK code points exactly the way
+  it already picked Noto Emoji for emoji. `tools/make-ja-font.py` regenerates
+  the subset from the Google Fonts variable font.
+- **Japanese relative dates** (`src/yt/parse.c`): `3 秒前`, `5 分前`,
+  `2 時間前`, `1 日前`, `1 週間前`, `1 か月前`, `1 年前` are understood, so
+  newest-first ordering keeps working with `hl=ja`.
+
+The original German/English/… tables are untouched. The Japanese catalogue is
+checked by `tests/test_strings.c` for format-conversion parity, button glyphs,
+key names and spacing.
 
 ## Overview
 
@@ -46,10 +73,10 @@ custom server.
 - **Live streams and on-demand 720p via HLS**, with hardware video decoding
   and automatic fallback to a progressive format if HLS fails for a given
   video (`src/media/hls.c`, `src/ui/player_quality_switch.c`).
-- **Six-language UI** — German, English, Spanish, Brazilian Portuguese,
-  Italian, French (`src/ui/strings.c`, one table per language in
+- **Seven-language UI** — German, English, Spanish, Brazilian Portuguese,
+  Italian, French, Japanese (`src/ui/strings.c`, one table per language in
   `src/ui/strings_*.c`) — plus a choice of content regions/languages
-  (DE/AT/CH, US, UK, FR, ES, IT, BR; `src/yt/region.c`), which affects
+  (DE/AT/CH, US, UK, FR, ES, IT, BR, JP; `src/yt/region.c`), which affects
   titles, dates, and search results. On first launch the region follows the
   console language, and the UI language follows the region.
 - **Touch and button controls** in the player (scrubbing, volume, quality

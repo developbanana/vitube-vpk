@@ -169,6 +169,20 @@ static int age_minutes(const char *s) {
          * the Spanish stems above; "an" covers ano/anos. Only the two words
          * Spanish spells differently are new. */
         { "dia",     1440 },   { "m\xc3\xaas", 43200 },
+        /* ja: 3 秒前 / 5 分前 / 2 時間前 / 1 日前 / 1 週間前 / 1 か月前 /
+         * 1 年前. YouTube emits ASCII digits and a space before the unit, and
+         * the scanner skips that space. ヶ月/カ月 are accepted because older
+         * YouTube clients spelled the month unit that way; か月 is the
+         * current one. */
+        { "\xe7\xa7\x92", 0 },                    /* 秒 */
+        { "\xe5\x88\x86", 1 },                    /* 分 */
+        { "\xe6\x99\x82\xe9\x96\x93", 60 },     /* 時間 */
+        { "\xe6\x97\xa5", 1440 },                 /* 日 */
+        { "\xe9\x80\xb1\xe9\x96\x93", 10080 },  /* 週間 */
+        { "\xe3\x81\x8b\xe6\x9c\x88", 43200 },  /* か月 */
+        { "\xe3\x83\xb6\xe6\x9c\x88", 43200 },  /* ヶ月 */
+        { "\xe3\x82\xab\xe6\x9c\x88", 43200 },  /* カ月 */
+        { "\xe5\xb9\xb4", 525600 },               /* 年 */
     };
     if (!s) return -1;
     for (const char *p = s; *p; p++) {
@@ -179,7 +193,12 @@ static int age_minutes(const char *s) {
         for (;;) { /* skip thousands/decimal separators, spaces and NBSP */
             if (*w == ' ' || *w == '.' || *w == ',') { w++; continue; }
             if ((unsigned char)w[0] == 0xc2 && (unsigned char)w[1] == 0xa0) {
-                w += 2;
+                w += 2; /* NBSP */
+                continue;
+            }
+            if ((unsigned char)w[0] == 0xe3 && (unsigned char)w[1] == 0x80 &&
+                (unsigned char)w[2] == 0x80) {
+                w += 3; /* U+3000, the full-width space YouTube uses in ja */
                 continue;
             }
             break;

@@ -19,6 +19,7 @@ extern const char *const vt_strings_es[VT_STR_COUNT];
 extern const char *const vt_strings_pt[VT_STR_COUNT];
 extern const char *const vt_strings_it[VT_STR_COUNT];
 extern const char *const vt_strings_fr[VT_STR_COUNT];
+extern const char *const vt_strings_ja[VT_STR_COUNT];
 
 static const char *const *const g_tables[VT_LANG_CHOICE_COUNT] = {
     [VT_LANG_DE] = vt_strings_de,
@@ -27,12 +28,14 @@ static const char *const *const g_tables[VT_LANG_CHOICE_COUNT] = {
     [VT_LANG_PT] = vt_strings_pt,
     [VT_LANG_IT] = vt_strings_it,
     [VT_LANG_FR] = vt_strings_fr,
+    [VT_LANG_JA] = vt_strings_ja,
 };
 
 static const char *const g_codes[VT_LANG_CHOICE_COUNT] = {
     [VT_LANG_AUTO] = "auto",
     [VT_LANG_DE] = "de", [VT_LANG_EN] = "en", [VT_LANG_ES] = "es",
     [VT_LANG_PT] = "pt", [VT_LANG_IT] = "it", [VT_LANG_FR] = "fr",
+    [VT_LANG_JA] = "ja",
 };
 
 const char *vt_str_in(VtLangChoice lang, VtStringId id) {

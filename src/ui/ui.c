@@ -40,23 +40,32 @@ typedef enum {
 } VtFontSlot;
 static const int g_font_px[VT_FONT_COUNT] = { 14, 18, 21, 36 };
 static vita2d_font *g_fonts[VT_FONT_COUNT];
-/* Second family for emoji, loaded on demand — see emoji_font() below. */
-static vita2d_font *g_emoji[VT_FONT_COUNT];
-static char g_emoji_failed[VT_FONT_COUNT];
+/* Fallback families, indexed by glyph_source()'s answer. The main family is
+ * g_fonts above; these load on demand, so a size that never meets emoji or
+ * Japanese never pays for those faces. */
+#define SRC_MAIN 0
+#define SRC_EMOJI 1
+#define SRC_JA 2
+#define SRC_COUNT 3
+static const char *const g_font_path[SRC_COUNT] = {
+    "app0:font.ttf", "app0:emoji.ttf", "app0:font_ja.ttf",
+};
+static vita2d_font *g_fallback[SRC_COUNT][VT_FONT_COUNT];
+static char g_fallback_failed[SRC_COUNT][VT_FONT_COUNT];
 
 /* FreeType faces used only to ask which code points a font can draw;
  * vita2d keeps its own faces for the actual rendering. See glyph_source(). */
 static FT_Library g_ft;
-static FT_Face g_face_main, g_face_emoji;
+static FT_Face g_face[SRC_COUNT];
 
 static void open_coverage_faces(void) {
     if (FT_Init_FreeType(&g_ft) != 0) { g_ft = NULL; return; }
-    if (FT_New_Face(g_ft, "app0:font.ttf", 0, &g_face_main) != 0)
-        g_face_main = NULL;
-    if (FT_New_Face(g_ft, "app0:emoji.ttf", 0, &g_face_emoji) != 0)
-        g_face_emoji = NULL;
-    vt_log("ui: coverage faces main=%d emoji=%d", g_face_main != NULL,
-           g_face_emoji != NULL);
+    for (int i = 0; i < SRC_COUNT; i++)
+        if (FT_New_Face(g_ft, g_font_path[i], 0, &g_face[i]) != 0)
+            g_face[i] = NULL;
+    vt_log("ui: coverage faces main=%d emoji=%d ja=%d",
+           g_face[SRC_MAIN] != NULL, g_face[SRC_EMOJI] != NULL,
+           g_face[SRC_JA] != NULL);
 }
 
 /* Kept only as a fallback: if the bundled TTF cannot be loaded the app still
@@ -108,14 +117,17 @@ void vt_ui_term(void) {
     for (int i = 0; i < VT_FONT_COUNT; i++) {
         if (g_fonts[i]) vita2d_free_font(g_fonts[i]);
         g_fonts[i] = NULL;
-        if (g_emoji[i]) vita2d_free_font(g_emoji[i]);
-        g_emoji[i] = NULL;
+        for (int f = 0; f < SRC_COUNT; f++) {
+            if (g_fallback[f][i]) vita2d_free_font(g_fallback[f][i]);
+            g_fallback[f][i] = NULL;
+        }
     }
     if (g_pgf) vita2d_free_pgf(g_pgf);
     g_pgf = NULL;
-    if (g_face_main) FT_Done_Face(g_face_main);
-    if (g_face_emoji) FT_Done_Face(g_face_emoji);
-    g_face_main = g_face_emoji = NULL;
+    for (int f = 0; f < SRC_COUNT; f++) {
+        if (g_face[f]) FT_Done_Face(g_face[f]);
+        g_face[f] = NULL;
+    }
     if (g_ft) FT_Done_FreeType(g_ft);
     g_ft = NULL;
 }
@@ -132,15 +144,15 @@ void vt_ui_term(void) {
  *
  * Loaded lazily per size — the file is ~2 MB and each instance keeps its own
  * face, so sizes that never meet an emoji never pay for one. */
-static vita2d_font *emoji_font(VtFontSlot s) {
-    if (!g_emoji[s] && !g_emoji_failed[s]) {
-        g_emoji[s] = vita2d_load_font_file("app0:emoji.ttf");
-        if (!g_emoji[s]) {
-            g_emoji_failed[s] = 1;
-            vt_log("ui: emoji.ttf could NOT be loaded");
+static vita2d_font *fallback_font(int src, VtFontSlot s) {
+    if (!g_fallback[src][s] && !g_fallback_failed[src][s]) {
+        g_fallback[src][s] = vita2d_load_font_file(g_font_path[src]);
+        if (!g_fallback[src][s]) {
+            g_fallback_failed[src][s] = 1;
+            vt_log("ui: %s could NOT be loaded", g_font_path[src]);
         }
     }
-    return g_emoji[s];
+    return g_fallback[src][s];
 }
 
 /* Decodes one UTF-8 sequence. Returns its byte length (1 for an invalid
@@ -182,28 +194,49 @@ static int in_emoji_block(unsigned int cp) {
 #define EMOJI_ASTRAL_HI 0x1faffu
 #define EMOJI_PUA_BASE 0xe000u
 
+/* Japanese text and the CJK punctuation/full-width forms around it. DejaVu
+ * has no kana and no kanji, so those code points go to the third family,
+ * Noto Sans JP (assets/font_ja.ttf). */
+static int in_cjk_block(unsigned int cp) {
+    return (cp >= 0x2e80 && cp <= 0x2eff) ||   /* radicals supplement */
+           (cp >= 0x3000 && cp <= 0x30ff) ||   /* punctuation, kana */
+           (cp >= 0x31f0 && cp <= 0x31ff) ||   /* katakana phonetic ext. */
+           (cp >= 0x3400 && cp <= 0x4dbf) ||   /* CJK ext. A */
+           (cp >= 0x4e00 && cp <= 0x9fff) ||   /* CJK unified ideographs */
+           (cp >= 0xf900 && cp <= 0xfaff) ||   /* compatibility ideographs */
+           (cp >= 0xff00 && cp <= 0xffef);     /* full/half-width forms */
+}
+
 static int glyph_source(unsigned int cp) {
     if (cp == 0x200d || (cp >= 0xfe00 && cp <= 0xfe0f)) return -1;
-    if (cp < 0x80) return 0; /* ASCII: never worth a lookup */
-    int have_main = g_face_main && FT_Get_Char_Index(g_face_main, cp);
-    int have_emoji = g_face_emoji && FT_Get_Char_Index(g_face_emoji, cp);
+    if (cp < 0x80) return SRC_MAIN; /* ASCII: never worth a lookup */
+    int have[SRC_COUNT] = { 0 };
+    for (int i = 0; i < SRC_COUNT; i++)
+        have[i] = g_face[i] && FT_Get_Char_Index(g_face[i], cp) != 0;
     int src;
-    if (in_emoji_block(cp))
-        src = have_emoji ? 1 : have_main ? 0 : -1;
+    if (in_cjk_block(cp))
+        src = have[SRC_JA] ? SRC_JA : have[SRC_MAIN] ? SRC_MAIN
+            : have[SRC_EMOJI] ? SRC_EMOJI : -1;
+    else if (in_emoji_block(cp))
+        src = have[SRC_EMOJI] ? SRC_EMOJI : have[SRC_MAIN] ? SRC_MAIN
+            : have[SRC_JA] ? SRC_JA : -1;
     else
-        src = have_main ? 0 : have_emoji ? 1 : -1;
+        src = have[SRC_MAIN] ? SRC_MAIN : have[SRC_EMOJI] ? SRC_EMOJI
+            : have[SRC_JA] ? SRC_JA : -1;
     /* Without coverage faces, fall back to a plain range guess. */
-    if (!g_face_main && !g_face_emoji) src = cp >= 0x1f000 ? 1 : 0;
+    if (!g_face[SRC_MAIN] && !g_face[SRC_EMOJI] && !g_face[SRC_JA])
+        src = in_cjk_block(cp) ? SRC_JA : cp >= 0x1f000 ? SRC_EMOJI : SRC_MAIN;
     /* vita2d's UTF-8 reader stops at three bytes: an astral code point it
      * is handed comes out as four .notdef boxes. Only the emoji block has a
      * PUA remap (text_runs), so every other astral code point — the 471
      * mathematical letters and the like DejaVu covers, emoji tag characters
      * — is dropped instead, which is also the right rendering for a
      * monochrome subdivision-flag fallback. */
-    if (cp > 0xffff && !(src == 1 && cp >= EMOJI_ASTRAL_LO && cp <= EMOJI_ASTRAL_HI))
+    if (cp > 0xffff &&
+        !(src == SRC_EMOJI && cp >= EMOJI_ASTRAL_LO && cp <= EMOJI_ASTRAL_HI))
         src = -1;
-    /* A code point neither font can draw is worth one line — it is the only
-     * way a missing glyph shows up other than a box on screen. */
+    /* A code point no font can draw is worth one line — it is the only way a
+     * missing glyph shows up other than a box on screen. */
     if (src < 0) {
         static unsigned int seen[24];
         static int seen_n;
@@ -211,7 +244,7 @@ static int glyph_source(unsigned int cp) {
             if (seen[i] == cp) return src;
         if (seen_n < (int)(sizeof seen / sizeof *seen)) {
             seen[seen_n++] = cp;
-            vt_log("ui: no glyph for U+%04X in either font", cp);
+            vt_log("ui: no glyph for U+%04X in any font", cp);
         }
     }
     return src;
@@ -297,7 +330,7 @@ static int text_runs(int x, int y, unsigned int color, VtFontSlot s,
             if (next_src < 0) { p += next_len; continue; } /* drop, keep run */
             if (next_src != src) break;
             unsigned int draw_cp = next_cp;
-            if (src == 1 && next_cp >= EMOJI_ASTRAL_LO &&
+            if (src == SRC_EMOJI && next_cp >= EMOJI_ASTRAL_LO &&
                 next_cp <= EMOJI_ASTRAL_HI)
                 draw_cp = EMOJI_PUA_BASE + (next_cp - EMOJI_ASTRAL_LO);
             n += (size_t)utf8_encode(run + n, draw_cp);
@@ -305,8 +338,11 @@ static int text_runs(int x, int y, unsigned int color, VtFontSlot s,
         }
         run[n] = '\0';
         if (!n) continue;
-        vita2d_font *f = src == 1 ? emoji_font(s) : g_fonts[s];
-        if (!f) f = g_fonts[s]; /* no emoji font: the box is still better
+        vita2d_font *f;
+        if (src == SRC_EMOJI) f = fallback_font(SRC_EMOJI, s);
+        else if (src == SRC_JA) f = fallback_font(SRC_JA, s);
+        else f = g_fonts[s];
+        if (!f) f = g_fonts[s]; /* no fallback font: the box is still better
                                  * than silently losing the character */
         if (draw) vita2d_font_draw_text(f, cursor, baseline, color, px, run);
         cursor += vita2d_font_text_width(f, px, run);

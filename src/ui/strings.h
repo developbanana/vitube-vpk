@@ -1,5 +1,5 @@
-/* ViTube — user-facing text in German, English, Spanish, Portuguese, Italian
- * and French.
+/* ViTube — user-facing text in German, English, Spanish, Portuguese, Italian,
+ * French and Japanese.
  *
  * Every string the app puts on screen goes through vt_str(). Log lines do
  * NOT: they are developer-facing and stay as they are. Neither do the unit
@@ -24,6 +24,7 @@ typedef enum {
     VT_LANG_PT, /* Brazilian Portuguese — the variant YouTube's "pt" is */
     VT_LANG_IT,
     VT_LANG_FR,
+    VT_LANG_JA,
     VT_LANG_CHOICE_COUNT
 } VtLangChoice;
 

@@ -22,6 +22,7 @@ static VtLangChoice effective(void) {
         { 'd', 'e', VT_LANG_DE }, { 'e', 'n', VT_LANG_EN },
         { 'e', 's', VT_LANG_ES }, { 'p', 't', VT_LANG_PT },
         { 'i', 't', VT_LANG_IT }, { 'f', 'r', VT_LANG_FR },
+        { 'j', 'a', VT_LANG_JA },
     };
     const char *hl = yt_region_hl();
     for (unsigned i = 0; i < sizeof by_hl / sizeof *by_hl; i++)
@@ -51,6 +52,7 @@ const char *vt_lang_label(VtLangChoice choice) {
     case VT_LANG_IT: return "Italiano";
     case VT_LANG_FR: return "Fran\xc3\xa7\x61is"; /* \x61 = 'a': it would
                                                      * otherwise extend \xa7 */
+    case VT_LANG_JA: return "\xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e";
     default:         return vt_str(S_LANG_AUTOMATIC);
     }
 }

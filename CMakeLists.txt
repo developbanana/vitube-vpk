@@ -13,7 +13,7 @@ include("${VITASDK}/share/vita.cmake" REQUIRED)
 
 set(VITA_APP_NAME "ViTube")
 set(VITA_TITLEID  "VTUB00001")
-set(VITA_VERSION  "02.00")
+set(VITA_VERSION  "02.10")
 
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
@@ -94,6 +94,7 @@ add_executable(${PROJECT_NAME}
   src/ui/strings_pt.c
   src/ui/strings_it.c
   src/ui/strings_fr.c
+  src/ui/strings_ja.c
   src/ui/login_screen.c
 )
 
@@ -168,5 +169,11 @@ vita_create_vpk(ViTube.vpk ${VITA_TITLEID} ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT
   # text path renders 8-bit coverage and cannot show CBDT colour glyphs).
   # Loaded on demand for code points font.ttf has no glyph for.
   FILE assets/emoji.ttf emoji.ttf
+  # Noto Sans JP: DejaVu has no kana or kanji, so Japanese titles and the
+  # Japanese UI draw from this third family (see ui.c). Subset of the Google
+  # Fonts variable font pinned at wght=400; tools/make-ja-font.py regenerates
+  # it.
+  FILE assets/font_ja.ttf font_ja.ttf
+  FILE assets/FONT-JA-LICENSE.txt licenses/FONT-JA-LICENSE.txt
 )
 add_dependencies(ViTube.vpk-vpk ${PROJECT_NAME}.self-self)

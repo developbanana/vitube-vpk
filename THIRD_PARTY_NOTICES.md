@@ -19,6 +19,7 @@ named here.
 | jansson (`external/jansson`) | MIT | https://github.com/akheron/jansson |
 | DejaVu Sans (`assets/font.ttf`) | Bitstream Vera / DejaVu licence | `assets/FONT-LICENSE.txt` |
 | Noto Emoji (`assets/emoji.ttf`) | OFL-1.1 | `assets/EMOJI-LICENSE.txt` |
+| Noto Sans JP (`assets/font_ja.ttf`) | OFL-1.1 | `assets/FONT-JA-LICENSE.txt`, https://github.com/google/fonts/tree/main/ofl/notosansjp |
 | vita2d, VitaSDK | MIT / respective licences | https://vitasdk.org |
 
 `external/vita-hw-decoder/tools/build-ffmpeg.sh` reproduces the patched

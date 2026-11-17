@@ -23,9 +23,13 @@ static const yt_region_t g_regions[] = {
     { "France",            "fr", "FR" },
     { "Espa\xc3\xb1\x61",  "es", "ES" },
     { "Italia",            "it", "IT" },
-    /* Append only: region.txt stores the choice as its index, one digit.
+    /* Append only: new region.txt files store the two-letter gl code, and
+     * one-digit files written by older builds are still read as an index.
      * YouTube's bare "pt" is Brazilian Portuguese (Portugal is "pt-PT"). */
     { "Brasil",            "pt", "BR" },
+    /* Japanese. Appended after BR so every index written by older builds
+     * keeps its meaning. */
+    { "\xe6\x97\xa5\xe6\x9c\xac", "ja", "JP" },
 };
 #define REGION_COUNT ((int)(sizeof g_regions / sizeof *g_regions))
 
@@ -53,6 +57,7 @@ static int region_with_gl(const char *gl) {
  * locale probe must never be able to break a launch. */
 static int region_from_console(void) {
     static const struct { int lang; const char *gl; } home[] = {
+        { SCE_SYSTEM_PARAM_LANG_JAPANESE,      "JP" },
         { SCE_SYSTEM_PARAM_LANG_GERMAN,        "DE" },
         { SCE_SYSTEM_PARAM_LANG_FRENCH,        "FR" },
         { SCE_SYSTEM_PARAM_LANG_SPANISH,       "ES" },
@@ -80,18 +85,29 @@ static int region_from_console(void) {
 void yt_region_load(void) {
     vt_io_lock();
     SceUID fd = sceIoOpen(VITUBE_REGION_PATH, SCE_O_RDONLY, 0);
-    char c = 0;
-    int have_file = fd >= 0;
-    if (have_file) {
-        if (sceIoRead(fd, &c, 1) != 1) have_file = 0;
+    char code[3] = { 0, 0, 0 };
+    int n = 0;
+    if (fd >= 0) {
+        n = sceIoRead(fd, code, 2);
         sceIoClose(fd);
     }
     vt_io_unlock();
-    int index = have_file ? c - '0' : region_from_console();
-    g_index = (index >= 0 && index < REGION_COUNT) ? index : 3;
+
+    int index = -1;
+    if (n == 2 && code[0] >= 'A' && code[0] <= 'Z' &&
+        code[1] >= 'A' && code[1] <= 'Z') {
+        /* Current format: the two-letter gl code. */
+        index = region_with_gl(code);
+    } else if (n >= 1 && code[0] >= '0' && code[0] <= '9') {
+        /* Older builds stored the index as one digit; keep reading them so
+         * an update does not silently move somebody's region. */
+        index = code[0] - '0';
+    }
+    if (index < 0) index = region_from_console();
+    g_index = (index >= 0 && index < REGION_COUNT) ? index : region_with_gl("US");
     vt_log("region: %s (%s/%s)%s", g_regions[g_index].label,
            g_regions[g_index].hl, g_regions[g_index].gl,
-           have_file ? "" : " (from the console, not stored)");
+           n > 0 ? "" : " (from the console, not stored)");
 }
 
 int yt_region_index(void) { return g_index; }
@@ -107,8 +123,7 @@ void yt_region_set_index(int index) {
     SceUID fd = sceIoOpen(VITUBE_REGION_PATH,
                           SCE_O_WRONLY | SCE_O_CREAT | SCE_O_TRUNC, 0777);
     if (fd >= 0) {
-        char c = (char)('0' + index);
-        sceIoWrite(fd, &c, 1);
+        sceIoWrite(fd, g_regions[index].gl, 2);
         sceIoClose(fd);
     }
     vt_io_unlock();
